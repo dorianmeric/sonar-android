@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.echosonar.sensors.OrientationTracker
+import com.echosonar.sensors.PoseMath
 import com.echosonar.ui.ScanStatus
 import com.echosonar.ui.SonarUiState
 import com.echosonar.ui.theme.EchoColors
@@ -150,12 +151,27 @@ fun RadarView(state: SonarUiState, modifier: Modifier = Modifier) {
             )
         }
 
-        if (state.prefs.sweepMode == com.echosonar.sonar.SweepMode.AUTO && state.isRunning && !state.demo) {
+        if (state.isRunning && !state.demo && state.prefs.sweepMode == com.echosonar.sonar.SweepMode.AUTO) {
             HudLabel(
                 text = "SYNTHETIC SWEEP · bearing interpolated, not measured",
                 alignment = Alignment.BottomCenter,
                 color = EchoColors.Amber.copy(alpha = 0.85f),
             )
+        } else if (state.isRunning && !state.demo && state.stats.poseKnown) {
+            // "Upright" made measurable: the bearing reference degenerates as the phone tilts.
+            when {
+                state.stats.tiltDeg > PoseMath.TILT_WARN_DEG -> HudLabel(
+                    text = "TILT ${state.stats.tiltDeg.toInt()}° · STAND IT UPRIGHT",
+                    alignment = Alignment.BottomCenter,
+                    color = EchoColors.Warning,
+                )
+
+                state.stats.upsideDown -> HudLabel(
+                    text = "UPSIDE DOWN · TOP EDGE SHOULD POINT UP",
+                    alignment = Alignment.BottomCenter,
+                    color = EchoColors.Warning,
+                )
+            }
         }
     }
 }
@@ -307,7 +323,7 @@ private fun DrawScope.drawRadar(
     if (state.prefs.showHardwareHints) {
         drawText(
             paint,
-            "TOP MIC",
+            "TOP EDGE · MIC",
             cx,
             cy - radius - 6.dp.toPx(),
             EchoColors.PhosphorDim.toArgb(),
@@ -316,7 +332,7 @@ private fun DrawScope.drawRadar(
         )
         drawText(
             paint,
-            "BOTTOM SPEAKER",
+            "BOTTOM EDGE · SPEAKER",
             cx,
             cy + radius + 14.dp.toPx(),
             EchoColors.PhosphorDim.toArgb(),

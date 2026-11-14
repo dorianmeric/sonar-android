@@ -117,10 +117,30 @@ Signing material is never stored in this repository:
    bearing with a max-blend and an exponential phosphor decay, and extracts the per-bearing contours
    the UI draws.
 
+### Holding the phone
+
+* **Upright means portrait:** top edge up, screen towards you, the phone within about 20° of vertical,
+  held at chest height. Turning is a *yaw* around the vertical axis — turn on the spot like a
+  lighthouse, not by waving the phone. Not flat on a table; not aimed at the ceiling.
+  Live tilt is shown in the telemetry, and past 25° the HUD warns you: the bearing reference is the
+  back-of-phone vector, whose horizontal component shrinks as you tilt, so bearings get noisy and the
+  floor/ceiling start leaking into the map.
+* **Which face you point barely matters acoustically.** The speaker and microphone are in the bottom and
+  top *edges*, not behind the screen or the back panel, and the body shades both faces about equally.
+  What matters is that neither edge is covered (hand, case, table, clothing).
+* **But the face does define the map's frame:** the radar draws "straight ahead" as the direction the
+  **back** of the phone points, so keep the back turned towards the room you are sketching. Flip the
+  phone around and the outline comes out rotated 180° — not mirrored, not broken.
+* An upside-down hold (top edge pointing down) still maps correctly, but the TOP EDGE / BOTTOM EDGE
+  labels no longer match what your hands are doing; the HUD says so. `PoseMath` derives all of this from
+  the rotation matrix and is unit tested against synthetic poses.
+
 ### Honest limitations (also surfaced inside the app)
 
 * **No true bearing.** One transducer pair is omnidirectional. The angle comes from the phone's
-  rotation-vector sensor (or from the synthetic AUTO sweep, which is labelled as such).
+  rotation-vector sensor — the heading of the phone's *back* — or from the synthetic AUTO sweep, which is
+  labelled as such. The top-edge heading reported by `SensorManager.getOrientation` is deliberately not
+  used: it is vertical, and therefore undefined, in the upright pose.
 * Echoes smear over roughly a fist-width of range; specular walls can miss the mic entirely.
 * Platform audio processing (AGC/NS/AEC) can notch the ultrasonic band — RAW mic mode helps on some
   devices only.
@@ -168,7 +188,7 @@ app/src/main/java/com/echosonar/
   audio/     AudioEngine, SampleRing, AudioSupport (device capabilities)
   dsp/       Fft, Chirp, MatchedFilter, RangeProcessor, SonarConfig, SyntheticRoom
   sonar/     MapAccumulator, AdviceEngine, SessionTracker, SettingsStore, UiPrefs
-  sensors/   OrientationTracker (rotation vector / gyro heading)
+  sensors/   OrientationTracker (rotation vector / gyro), PoseMath (bearing + tilt from a rotation matrix)
   ui/        SonarViewModel, SonarUiState, theme, CRT components, radar canvas, sheets
   MainActivity.kt
 .githooks/   pre-commit secret guard (install with scripts/install-git-hooks.ps1)

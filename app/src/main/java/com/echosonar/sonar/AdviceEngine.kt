@@ -1,6 +1,7 @@
 package com.echosonar.sonar
 
 import com.echosonar.dsp.SonarConfig
+import com.echosonar.sensors.PoseMath
 
 enum class AdviceSeverity { GOOD, INFO, HINT, WARN, CRITICAL }
 
@@ -80,8 +81,9 @@ class AdviceEngine(private val defaultCooldownMs: Long = 9_000L) {
                 id = "no-echoes",
                 severity = AdviceSeverity.WARN,
                 title = "No echoes above the threshold",
-                detail = "Either nothing hard is in front of the top microphone, or the returns are too quiet.",
-                action = "Aim the top edge at a wall 1–3 m away. Soft furnishings absorb ultrasound; try a tiled or bare room.",
+                detail = "Either there is no hard surface in front of the phone, or the returns are too quiet. " +
+                    "The speaker and microphone sit in the top and bottom edges, so a wall anywhere in front works.",
+                action = "Stand 1–3 m from a bare wall, keep the top and bottom edges uncovered, and try a tiled or empty room.",
             )
         }
 
@@ -145,13 +147,37 @@ class AdviceEngine(private val defaultCooldownMs: Long = 9_000L) {
             )
         }
 
+        if (rotateMode && stats.poseKnown && stats.pingCount >= 6 && stats.tiltDeg > PoseMath.TILT_WARN_DEG) {
+            candidates += Advice(
+                id = "pose-tilt",
+                severity = AdviceSeverity.WARN,
+                title = "Hold the phone more upright",
+                detail = "It is ${stats.tiltDeg.toInt()}° away from vertical. The radar's forward direction is the " +
+                    "direction the BACK of the phone points, and that reference gets noisy as you tilt — the " +
+                    "floor and ceiling also start leaking into the map.",
+                action = "Hold it like a portrait photo: top edge up, screen towards you, within ~20° of vertical, " +
+                    "at chest height.",
+            )
+        }
+
+        if (rotateMode && stats.poseKnown && stats.upsideDown && stats.pingCount >= 6) {
+            candidates += Advice(
+                id = "pose-upside-down",
+                severity = AdviceSeverity.INFO,
+                title = "Phone is upside down",
+                detail = "The top edge is pointing down, so the speaker and microphone are swapped relative to " +
+                    "the TOP MIC / BOTTOM SPEAKER labels on the radar.",
+                action = "Turn the phone so its top edge — the microphone end — points up.",
+            )
+        }
+
         if (rotateMode && stats.pingCount >= 10 && stats.rotationSpeedDeg > 75f) {
             candidates += Advice(
                 id = "rotate-fast",
                 severity = AdviceSeverity.WARN,
                 title = "Turning too fast",
                 detail = "At ${stats.rotationSpeedDeg.toInt()} °/s each ping smears across many degrees and the walls blur.",
-                action = "Turn the phone at roughly one full circle per 15–20 seconds.",
+                action = "Turn on the spot at roughly one full circle every 15–20 seconds.",
             )
         }
 
@@ -161,7 +187,8 @@ class AdviceEngine(private val defaultCooldownMs: Long = 9_000L) {
                 severity = AdviceSeverity.HINT,
                 title = "Rotate to sweep the room",
                 detail = "The map only fills in the directions you have pointed at. ${(map.coverage * 100).toInt()} % covered so far.",
-                action = "Hold the phone upright at chest height and turn slowly left to right.",
+                action = "Hold the phone upright — portrait, top edge up, screen towards you, within ~20° of " +
+                    "vertical — at chest height, and turn on the spot.",
             )
         }
 
@@ -212,7 +239,7 @@ class AdviceEngine(private val defaultCooldownMs: Long = 9_000L) {
                 title = "Listening for echoes",
                 detail = "Each chirp is ${config.chirpMs} ms of ${config.centerHz.toInt()} Hz ultrasound, " +
                     "compressed to ${"%.0f".format(config.rangeResolutionM * 100)} cm range resolution.",
-                action = "Hold still for a few pings, then start rotating.",
+                action = "Hold still for a few pings, then start turning on the spot.",
             )
         }
 

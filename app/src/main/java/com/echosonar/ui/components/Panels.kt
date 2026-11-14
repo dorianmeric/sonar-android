@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.echosonar.sensors.PoseMath
 import com.echosonar.sonar.AdviceSeverity
 import com.echosonar.sonar.SweepMode
 import com.echosonar.ui.LogEntry
@@ -171,14 +172,23 @@ fun TelemetryGrid(state: SonarUiState, modifier: Modifier = Modifier) {
             )
         }
         Text(
-            text = "PINGS ${stats.pingCount} · HITS ${stats.echoPingCount} · " +
+            text = buildString {
+                append("PINGS ${stats.pingCount} · HITS ${stats.echoPingCount}")
                 when {
-                    state.demo -> "SWEEP SYNTHETIC"
-                    state.rotateMode -> "ROTATION ${stats.rotationSpeedDeg.toInt()} °/s"
-                    else -> "SWEEP SYNTHETIC"
-                },
+                    state.demo -> append(" · SWEEP SYNTHETIC")
+                    !stats.poseKnown -> append(" · TILT ?")
+                    else -> {
+                        append(" · TILT ${stats.tiltDeg.toInt()}°")
+                        if (state.rotateMode) append(" · ROT ${stats.rotationSpeedDeg.toInt()} °/s") else append(" · SWEEP SYNTHETIC")
+                    }
+                }
+            },
             style = MaterialTheme.typography.labelSmall,
-            color = EchoColors.TextSecondary.copy(alpha = 0.85f),
+            color = if (stats.poseKnown && stats.tiltDeg > PoseMath.TILT_WARN_DEG && !state.demo) {
+                EchoColors.Amber
+            } else {
+                EchoColors.TextSecondary.copy(alpha = 0.85f)
+            },
         )
     }
 }

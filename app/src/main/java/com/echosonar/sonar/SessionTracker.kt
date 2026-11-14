@@ -22,6 +22,10 @@ data class SessionStats(
     val clippingRatio: Float = 0f,
     val unlockRatio: Float = 0f,
     val rotationSpeedDeg: Float = 0f,
+    /** 0° = upright, 90° = flat. Only meaningful when [poseKnown]. */
+    val tiltDeg: Float = 0f,
+    val poseKnown: Boolean = false,
+    val upsideDown: Boolean = false,
 ) {
     val detectedRate: Float get() = if (pingCount > 0) echoPingCount.toFloat() / pingCount else 0f
 }
@@ -45,6 +49,9 @@ class SessionTracker(private val alpha: Float = 0.18f) {
     private var emaNoiseFloor = 0f
     private var emaInputRms = 0f
     private var lastRotationSpeed = 0f
+    private var lastTilt = 0f
+    private var lastPoseKnown = false
+    private var lastUpsideDown = false
     private var initialised = false
 
     fun reset(nowMs: Long) {
@@ -62,10 +69,20 @@ class SessionTracker(private val alpha: Float = 0.18f) {
         emaNoiseFloor = 0f
         emaInputRms = 0f
         lastRotationSpeed = 0f
+        lastTilt = 0f
+        lastPoseKnown = false
+        lastUpsideDown = false
         initialised = false
     }
 
-    fun record(result: PingResult, rotationSpeedDeg: Float, nowMs: Long) {
+    fun record(
+        result: PingResult,
+        rotationSpeedDeg: Float,
+        nowMs: Long,
+        tiltDeg: Float = 0f,
+        poseKnown: Boolean = false,
+        upsideDown: Boolean = false,
+    ) {
         if (pingCount == 0) startedAtMs = nowMs
         val m = result.metrics
         pingCount++
@@ -73,6 +90,9 @@ class SessionTracker(private val alpha: Float = 0.18f) {
         if (m.clipped) clippedCount++
         if (!m.directLocked) unlockedCount++
         lastRotationSpeed = abs(rotationSpeedDeg)
+        lastTilt = tiltDeg
+        lastPoseKnown = poseKnown
+        lastUpsideDown = upsideDown
 
         if (!initialised) {
             emaQuality = m.quality.toFloat()
@@ -109,5 +129,8 @@ class SessionTracker(private val alpha: Float = 0.18f) {
         clippingRatio = if (pingCount > 0) clippedCount.toFloat() / pingCount else 0f,
         unlockRatio = if (pingCount > 0) unlockedCount.toFloat() / pingCount else 0f,
         rotationSpeedDeg = lastRotationSpeed,
+        tiltDeg = lastTilt,
+        poseKnown = lastPoseKnown,
+        upsideDown = lastUpsideDown,
     )
 }

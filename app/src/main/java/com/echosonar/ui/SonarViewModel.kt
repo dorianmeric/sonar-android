@@ -171,7 +171,7 @@ class SonarViewModel(application: Application) : AndroidViewModel(application) {
                 lastMs = now
                 map.ingest(result)
                 map.decay(dtSeconds, _state.value.prefs.persistenceSec)
-                sessionTracker.record(result, 24f, now)
+                sessionTracker.record(result, 24f, now, tiltDeg = 0f, poseKnown = false)
                 val stats = sessionTracker.stats(now)
                 val advice = evaluateAdvice(now, stats, config, map, rotate = false)
                 val snapshot = map.snapshot()
@@ -303,7 +303,7 @@ class SonarViewModel(application: Application) : AndroidViewModel(application) {
                 lastPingMs = now
                 map.ingest(result)
                 map.decay(dtSeconds, prefs.persistenceSec)
-                sessionTracker.record(result, tracker.rotationSpeedDegPerSec, now)
+                sessionTracker.record(result, tracker.rotationSpeedDegPerSec, now, tracker.tiltDeg, tracker.poseKnown, tracker.upsideDown)
 
                 val stats = sessionTracker.stats(now)
                 val newAdvice = evaluateAdvice(now, stats, config, map, rotate)

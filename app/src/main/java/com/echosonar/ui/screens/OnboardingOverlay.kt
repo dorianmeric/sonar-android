@@ -79,16 +79,21 @@ fun OnboardingOverlay(onDismiss: () -> Unit, onStart: () -> Unit) {
             OnboardingStep(
                 icon = Icons.AutoMirrored.Filled.VolumeUp,
                 title = "2 · Before you start",
-                body = "Set media volume to 80–100 %, remove the case, and keep both ends of the " +
-                    "phone clear. Hard surfaces (walls, doors, glass) return strong echoes; " +
-                    "curtains, sofas and carpets swallow ultrasound.",
+                body = "Set media volume to 80–100 %, remove the case, and keep the top and bottom EDGES of " +
+                    "the phone clear — that is where the microphone and speaker sit, not behind the screen. " +
+                    "Hard surfaces (walls, doors, glass) return strong echoes; curtains, sofas and carpets " +
+                    "swallow ultrasound.",
             )
             OnboardingStep(
                 icon = Icons.Filled.ScreenRotation,
-                title = "3 · How to sweep",
-                body = "Hold the phone upright at chest height and turn slowly — about one full " +
-                    "circle every 15–20 seconds. The map fills in whichever way you point. " +
-                    "AUTO mode draws a synthetic sweep instead.",
+                title = "3 · How to hold it",
+                body = "Upright means portrait: top edge up, screen towards you, phone within about 20° of " +
+                    "vertical, held at chest height. Turn on the spot like a lighthouse — one full circle " +
+                    "every 15–20 s, not by waving the phone.\n\n" +
+                    "Which face points at the wall barely changes the echoes, because the transducers are in " +
+                    "the edges. It does set the map's frame: 'up' on the radar is the direction the BACK of " +
+                    "the phone points, so keep the back turned towards the room. The HUD shows your tilt and " +
+                    "warns past 25°.",
             )
             OnboardingStep(
                 icon = Icons.Filled.Warning,

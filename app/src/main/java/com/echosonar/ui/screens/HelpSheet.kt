@@ -20,6 +20,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.echosonar.sensors.PoseMath
 import com.echosonar.ui.SonarUiState
 import com.echosonar.ui.components.PhosphorDivider
 import com.echosonar.ui.components.SectionHeader
@@ -109,16 +110,28 @@ fun HelpSheet(state: SonarUiState, onDismiss: () -> Unit, onStartDemo: () -> Uni
             SectionHeader("GETTING A GOOD SCAN")
             Bullet("Media volume 80–100 %. Below ~50 % the chirp is too quiet to hear its own echo.")
             Bullet("Take the case off. A few millimetres of plastic or leather can cost you 10 dB at 19 kHz.")
-            Bullet("Aim the top edge at hard, flat things: walls, doors, glass, tiles, tables. Sofas, curtains and carpets absorb ultrasound.")
+            Bullet("Aim the phone at hard, flat things: walls, doors, glass, tiles, tables. Sofas, curtains and carpets absorb ultrasound.")
             Bullet("Stay 1–3 m from the nearest surface. Closer than the blind zone (${"%.2f".format(state.config.minRangeM)} m) the echo hides inside the transmit burst.")
-            Bullet("Turn the phone slowly — around one circle per 15–20 s. Fast rotation smears each ping across many degrees.")
-            Bullet("Hold it upright and steady; handling noise is loud in the ultrasonic band.")
+            Bullet(
+                "Upright means portrait: top edge up, screen towards you, within about 20° of vertical, at chest " +
+                    "height. Turn on the spot — one full circle every 15–20 s. This matters because the radar's " +
+                    "forward direction is the direction the BACK of the phone points, and that reference gets " +
+                    "noisy as you tilt; the telemetry shows live tilt and the map warns past 25°.",
+            )
+            Bullet(
+                "Which face you point at the wall barely matters acoustically: the speaker and microphone sit in " +
+                    "the bottom and top EDGES, not behind the screen or the back, and the body shades both faces " +
+                    "about equally. What does matter is that neither edge is covered by a hand, a case, a table or " +
+                    "clothing — and that you keep the back of the phone turned towards the room, otherwise the " +
+                    "sketch comes out rotated 180°.",
+            )
+            Bullet("Hold it steady; handling noise is loud in the ultrasonic band.")
             Bullet("Quiet the room: fans, air-conditioners, aquarium pumps and other phones emit ultrasound.")
             Bullet("Run the frequency probe in TUNE once. It finds the frequency your particular speaker and microphone actually handle.")
 
             Spacer(Modifier.height(10.dp))
             SectionHeader("HONEST LIMITATIONS")
-            Bullet("Bearing is not measured. A single microphone is omnidirectional, so the angle comes from the phone's rotation (or the synthetic AUTO sweep). The map is a sketch of 'what was in front when this ping happened'.")
+            Bullet("Bearing is not measured. A single microphone is omnidirectional, so the angle comes from the phone's rotation — specifically from the direction the BACK of the phone points (or the synthetic AUTO sweep). The map is a sketch of 'what was in front when this ping happened'.")
             Bullet("Echoes smear over roughly a fist-width of range because of the correlation envelope and the speaker's uneven response.")
             Bullet("Specular walls can miss the microphone entirely if they are angled away — that is why some directions come back empty.")
             Bullet("Reverberation raises the local noise floor in bare rooms, which hides weak returns behind the walls you already found.")
@@ -172,6 +185,20 @@ fun HelpSheet(state: SonarUiState, onDismiss: () -> Unit, onStartDemo: () -> Uni
                     "Timing lock",
                     if (metrics.directLocked) "locked" else "unlocked — raise volume / uncouple the mic",
                 )
+                if (state.stats.poseKnown) {
+                    val tilt = state.stats.tiltDeg
+                    DiagnosticRow(
+                        "Tilt from vertical",
+                        "${tilt.toInt()}° " + if (tilt > PoseMath.TILT_WARN_DEG) "(too far — stand it up)" else "(upright)",
+                    )
+                    DiagnosticRow(
+                        "Bearing reference",
+                        if (state.rotateMode) "back of the phone" else "synthetic sweep",
+                    )
+                    if (state.stats.upsideDown) {
+                        DiagnosticRow("Hold", "upside down — top edge should point up")
+                    }
+                }
             }
 
             Spacer(Modifier.height(14.dp))

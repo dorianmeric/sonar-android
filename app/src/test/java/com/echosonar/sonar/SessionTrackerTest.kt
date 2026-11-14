@@ -48,8 +48,21 @@ class SessionTrackerTest {
         val tracker = SessionTracker(alpha = 0.5f)
         tracker.reset(nowMs = 1_000L)
         tracker.record(ping(detected = false, quality = 10, clipped = true), rotationSpeedDeg = -30f, nowMs = 1_000L)
-        tracker.record(ping(detected = true, quality = 90), rotationSpeedDeg = 20f, nowMs = 2_000L)
-        tracker.record(ping(detected = true, quality = 90), rotationSpeedDeg = 20f, nowMs = 3_000L)
+        tracker.record(
+            ping(detected = true, quality = 90),
+            rotationSpeedDeg = 20f,
+            nowMs = 2_000L,
+            tiltDeg = 9f,
+            poseKnown = true,
+            upsideDown = false,
+        )
+        tracker.record(
+            ping(detected = true, quality = 90),
+            rotationSpeedDeg = 20f,
+            nowMs = 3_000L,
+            tiltDeg = 9f,
+            poseKnown = true,
+        )
 
         val stats = tracker.stats(nowMs = 5_000L)
         assertEquals(3, stats.pingCount)
@@ -59,6 +72,8 @@ class SessionTrackerTest {
         assertTrue(stats.emaQuality > 60f)
         assertTrue(stats.emaNearestRangeM > 1f)
         assertEquals(20f, stats.rotationSpeedDeg, 0.01f)
+        assertEquals(9f, stats.tiltDeg, 0.01f)
+        assertTrue(stats.poseKnown)
         assertTrue(stats.detectedRate > 0.6f)
     }
 

@@ -107,6 +107,61 @@ class AdviceEngineTest {
         assertTrue(recommended(SessionStats(pingCount = 1)).isNotEmpty())
     }
 
+    @Test
+    fun tiltedHoldIsFlaggedWhenPoseIsKnown() {
+        val stats = SessionStats(
+            pingCount = 12,
+            echoPingCount = 5,
+            emaQuality = 60f,
+            tiltDeg = 44f,
+            poseKnown = true,
+            rotationSpeedDeg = 20f,
+        )
+        val advice = recommended(stats, rotate = true)
+        val tilt = advice.first { it.id == "pose-tilt" }
+        assertEquals(AdviceSeverity.WARN, tilt.severity)
+        assertTrue(tilt.detail.contains("44°"))
+        assertTrue(tilt.action!!.contains("portrait"))
+    }
+
+    @Test
+    fun uprightHoldIsNotFlagged() {
+        val stats = SessionStats(
+            pingCount = 12,
+            echoPingCount = 5,
+            emaQuality = 60f,
+            tiltDeg = 8f,
+            poseKnown = true,
+            rotationSpeedDeg = 20f,
+        )
+        assertTrue(recommended(stats, rotate = true).none { it.id == "pose-tilt" })
+    }
+
+    @Test
+    fun tiltIsIgnoredWhenOnlyTheGyroscopeIsAvailable() {
+        val stats = SessionStats(
+            pingCount = 12,
+            echoPingCount = 5,
+            emaQuality = 60f,
+            tiltDeg = 60f,
+            poseKnown = false,
+        )
+        assertTrue(recommended(stats, rotate = true).none { it.id == "pose-tilt" })
+    }
+
+    @Test
+    fun upsideDownHoldIsMentioned() {
+        val stats = SessionStats(
+            pingCount = 12,
+            echoPingCount = 5,
+            emaQuality = 60f,
+            tiltDeg = 5f,
+            poseKnown = true,
+            upsideDown = true,
+        )
+        assertTrue(recommended(stats, rotate = true).any { it.id == "pose-upside-down" })
+    }
+
     private fun samplePing(angleBin: Int, config: SonarConfig): com.echosonar.dsp.PingResult {
         val bins = config.rangeBins
         val snr = FloatArray(bins) { -5f }

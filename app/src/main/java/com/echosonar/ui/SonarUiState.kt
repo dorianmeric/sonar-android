@@ -44,7 +44,8 @@ data class SonarUiState(
         severity = AdviceSeverity.INFO,
         title = "EchoSonar is standing by",
         detail = "Press START to emit a 19 kHz chirp and listen for its echoes.",
-        action = "Hold the phone upright with the bottom speaker and top mic unobstructed.",
+        action = "Hold it upright: portrait, top edge up, screen towards you, within ~20° of vertical, " +
+            "with the top and bottom edges uncovered.",
     ),
     val log: List<LogEntry> = emptyList(),
     val sweepAngleRad: Float = 0f,

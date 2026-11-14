@@ -6,14 +6,18 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import kotlin.math.abs
-import kotlin.math.atan2
-import kotlin.math.sqrt
 
 /**
- * Device heading used as the sonar's sweep angle when the user rotates the phone by hand.
+ * Device pose used as the sonar's sweep angle when the user rotates the phone by hand.
  *
- * A rotation-vector sensor is used when present (absolute, drift free). Without it the sweep falls
- * back to an integrated gyroscope, and without both the UI keeps AUTO sweep but says so plainly.
+ * A rotation-vector sensor is preferred (absolute, drift free). Without it the sweep falls back to an
+ * integrated gyroscope, and without both the UI keeps AUTO sweep but says so plainly.
+ *
+ * The bearing itself comes from [PoseMath], not from `SensorManager.getOrientation()[0]`: the latter
+ * reports the heading of the *top edge*, which points at the sky in the intended upright pose and is
+ * therefore meaningless there. [PoseMath] uses the back of the phone instead, which stays horizontal
+ * while the phone is upright, and reports the tilt so the UI can tell the user when they drift away
+ * from that pose.
  */
 class OrientationTracker(context: Context) {
 
@@ -22,14 +26,29 @@ class OrientationTracker(context: Context) {
     private val gyroSensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
 
     private val rotationMatrix = FloatArray(9)
-    private val orientation = FloatArray(3)
 
+    /** Sweep angle in radar-canvas convention (0 = right, -pi/2 = up the screen). */
     @Volatile
     var yawRad: Float = 0f
         private set
 
     @Volatile
     var rotationSpeedDegPerSec: Float = 0f
+        private set
+
+    /** 0° = perfectly upright, 90° = flat on a table. Only meaningful when [poseKnown]. */
+    @Volatile
+    var tiltDeg: Float = 0f
+        private set
+
+    /** False when only the gyroscope is available, so tilt and absolute bearing are unknown. */
+    @Volatile
+    var poseKnown: Boolean = false
+        private set
+
+    /** True when the top edge points down, i.e. speaker and microphone are swapped. */
+    @Volatile
+    var upsideDown: Boolean = false
         private set
 
     @Volatile
@@ -41,7 +60,7 @@ class OrientationTracker(context: Context) {
         private set
 
     private var lastTimestampNs = 0L
-    private var lastYaw = 0f
+    private var lastBearing = 0f
     private var gyroYaw = 0f
     private var ema = 0f
     private var initialised = false
@@ -51,24 +70,28 @@ class OrientationTracker(context: Context) {
             when (event.sensor.type) {
                 Sensor.TYPE_ROTATION_VECTOR -> {
                     SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-                    SensorManager.getOrientation(rotationMatrix, orientation)
-                    var yaw = orientation[0]
+                    val bearing = PoseMath.sweepAngleRad(rotationMatrix)
+                    tiltDeg = PoseMath.tiltFromVerticalDeg(rotationMatrix)
+                    upsideDown = PoseMath.isUpsideDown(rotationMatrix)
+                    poseKnown = true
+
                     if (!initialised) {
-                        ema = yaw
-                        lastYaw = yaw
+                        ema = bearing
+                        lastBearing = bearing
                         lastTimestampNs = event.timestamp
                         initialised = true
-                        yawRad = yaw
+                        yawRad = bearing
                         return
                     }
+
                     val dt = if (lastTimestampNs > 0L) (event.timestamp - lastTimestampNs) / 1e9f else 0f
                     if (dt > 0f && dt < 1f) {
-                        val delta = shortestArc(lastYaw, yaw)
+                        val delta = PoseMath.shortestArc(lastBearing, bearing)
                         val smoothing = 0.12f
-                        ema = wrap(ema + (delta * smoothing))
+                        ema = PoseMath.wrap(ema + delta * smoothing)
                         rotationSpeedDegPerSec = 0.8f * rotationSpeedDegPerSec +
-                            0.2f * (Math.toDegrees((abs(delta) / dt).toDouble()).toFloat())
-                        lastYaw = yaw
+                            0.2f * Math.toDegrees((abs(delta) / dt).toDouble()).toFloat()
+                        lastBearing = bearing
                         lastTimestampNs = event.timestamp
                         yawRad = ema
                     }
@@ -78,10 +101,10 @@ class OrientationTracker(context: Context) {
                     if (!hasAbsoluteHeading) {
                         val dt = if (lastTimestampNs > 0L) (event.timestamp - lastTimestampNs) / 1e9f else 0f
                         if (dt > 0f && dt < 1f) {
-                            // z axis rotation in the device frame; sign chosen to match heading increases.
-                            gyroYaw = wrap(gyroYaw - event.values[2] * dt)
+                            // Device-frame z rotation; the sign matches the canvas convention.
+                            gyroYaw = PoseMath.wrap(gyroYaw - event.values[2] * dt)
                             rotationSpeedDegPerSec = 0.8f * rotationSpeedDegPerSec +
-                                0.2f * (Math.toDegrees(abs(event.values[2].toDouble())).toFloat())
+                                0.2f * Math.toDegrees(abs(event.values[2].toDouble())).toFloat()
                             yawRad = gyroYaw
                         }
                         lastTimestampNs = event.timestamp
@@ -112,31 +135,13 @@ class OrientationTracker(context: Context) {
     fun resetHeading(radians: Float = 0f) {
         ema = radians
         gyroYaw = radians
-        lastYaw = radians
+        lastBearing = radians
         yawRad = radians
     }
 
-    /** Tilt of the phone away from vertical, in degrees (used for the "hold upright" hint). */
-    fun tiltDegrees(event: SensorEvent): Float {
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
-        return Math.toDegrees(atan2(sqrt((x * x + y * y).toDouble()), z.toDouble())).toFloat()
-    }
-
     companion object {
-        fun wrap(radians: Float): Float {
-            var r = radians % (2f * Math.PI.toFloat())
-            if (r < 0f) r += 2f * Math.PI.toFloat()
-            return r
-        }
+        fun wrap(radians: Float): Float = PoseMath.wrap(radians)
 
-        fun shortestArc(from: Float, to: Float): Float {
-            val twoPi = 2f * Math.PI.toFloat()
-            var delta = (to - from) % twoPi
-            if (delta > Math.PI.toFloat()) delta -= twoPi
-            if (delta < -Math.PI.toFloat()) delta += twoPi
-            return delta
-        }
+        fun shortestArc(from: Float, to: Float): Float = PoseMath.shortestArc(from, to)
     }
 }
