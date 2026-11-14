@@ -1,14 +1,32 @@
-*.iml
-.gradle/
-.idea/
+# --- IDE / OS ---
 .DS_Store
+*.iml
+.idea/
+
+# --- Gradle / build outputs ---
+.gradle/
 build/
 captures/
 .externalNativeBuild
 .cxx
+
+# --- Local machine configuration (contains SDK paths) ---
+local.properties
+
+# --- Signing material: NEVER commit any of this ---
+# The release keystore lives outside the repo by default (~/.keys/echosonar).
+keystore.properties
+keystore/
+.keys/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+
+# --- Build artefacts ---
+# Publish APKs as GitHub Release assets, not as repository files.
+release/
 *.apk
 *.aab
-!release/*.apk
-#*.sha256
-#keystore.properties
-#local.properties
+*.sha256

@@ -1,0 +1,62 @@
+#!/bin/sh
+# Blocks commits that would add signing material, local machine config or build artefacts.
+#
+# Installed via:  powershell -ExecutionPolicy Bypass -File scripts/install-git-hooks.ps1
+# (sets core.hooksPath=.githooks, so the hook is version controlled and re-used everywhere).
+#
+# This is a seatbelt, not a vault: it catches the common `git add -A` mistake.
+
+set -u
+
+fail=0
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+for f in $staged; do
+    case "$f" in
+        *.jks|*.keystore|*.p12|*.pfx|*.pem|*.apk|*.aab)
+            echo "pre-commit: blocked binary/signing file: $f" >&2
+            fail=1
+            ;;
+        keystore.properties|local.properties|*/keystore.properties|*/local.properties)
+            echo "pre-commit: blocked local-only config: $f" >&2
+            fail=1
+            ;;
+        */.keys/*|.keys/*)
+            echo "pre-commit: blocked path that looks like a private key store: $f" >&2
+            fail=1
+            ;;
+    esac
+done
+
+# Content scan for secrets in staged additions only.
+if [ -n "$staged" ]; then
+    added=$(git diff --cached -U0 --diff-filter=ACMR -- $staged | grep '^+' | grep -v '^+++' || true)
+    if [ -n "$added" ]; then
+        patterns='-----BEGIN [A-Z ]*PRIVATE KEY-----|^\+.*storePassword[[:space:]]*=[[:alnum:]_+/=-]{12,}|^\+.*keyPassword[[:space:]]*=[[:alnum:]_+/=-]{12,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}'
+        hits=$(printf '%s\n' "$added" | grep -E -e "$patterns" || true)
+        if [ -n "$hits" ]; then
+            echo "pre-commit: staged content looks like a secret:" >&2
+            printf '%s\n' "$hits" | sed 's/^+//' | cut -c1-120 | sed 's/^/    /' >&2
+            fail=1
+        fi
+    fi
+fi
+
+if [ "$fail" -ne 0 ]; then
+    cat >&2 <<'EOF'
+
+Commit refused.
+
+Signing keys, keystore.properties, local.properties and APK/AAB artefacts must stay
+out of the repository. If you already staged them:
+
+    git restore --staged <file>
+    git rm --cached <file>          # if it was tracked before this commit
+
+If a secret was already committed, rotating it is mandatory: a deleted commit is
+still reachable by SHA on the remote and in forks/caches.
+EOF
+    exit 1
+fi
+
+exit 0

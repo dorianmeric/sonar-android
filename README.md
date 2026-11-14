@@ -48,20 +48,51 @@ $env:JAVA_HOME = "C:\P\Android Studio\jbr"
 # debug build + unit tests + lint
 .\gradlew.bat assembleDebug testDebugUnitTest lintDebug
 
-# release build (requires the keystore, see below)
+# one-time: create a signing key OUTSIDE the repository and install the secret guard
 powershell -ExecutionPolicy Bypass -File scripts\create-keystore.ps1
-.\gradlew.bat assembleRelease
+powershell -ExecutionPolicy Bypass -File scripts\install-git-hooks.ps1
 
-# verify the signature
+# release build + sign + verify + publish to release/ (git-ignored)
+powershell -ExecutionPolicy Bypass -File scripts\build-release.ps1
+
+# verify the signature by hand if you like
 & "$env:ANDROID_HOME\build-tools\35.0.0\apksigner.bat" verify --print-certs `
     app\build\outputs\apk\release\app-release.apk
 ```
 
-The signed APK lands at `app/build/outputs/apk/release/app-release.apk` and is copied to
-`release/EchoSonar-1.0.0.apk` by the release build script used here.
+The signed APK lands at `app/build/outputs/apk/release/app-release.apk` and is copied to the
+(git-ignored) `release/` folder. Distribute it as a **GitHub Release asset**, never as a repository
+file.
 
-`keystore.properties` and `keystore/*.jks` are local-only (git-ignored). The script generates a
-4096-bit RSA demo identity; replace it with your own before publishing.
+## Secrets and signing
+
+Signing material is never stored in this repository:
+
+| Item | Location | Guard |
+|---|---|---|
+| Release keystore | `~/.keys/echosonar/release.jks` (outside the work tree) | `.gitignore` + `.githooks/pre-commit` + CI |
+| `keystore.properties` | repo root, git-ignored — holds only the key path + password | same |
+| `local.properties` | repo root, git-ignored — SDK path only | same |
+| APK/AAB artefacts | `release/`, git-ignored | same |
+
+* `scripts/create-keystore.ps1` generates a 4096-bit RSA key with a **random 32-byte password**,
+  refuses to write inside the working tree, and tightens file ACLs to the current user.
+* `.githooks/pre-commit` (installed by `scripts/install-git-hooks.ps1`) refuses commits containing
+  keystores, `keystore.properties`, `local.properties`, APK/AAB bundles or credential-shaped strings.
+* `.github/workflows/secret-guard.yml` fails CI if any of those become tracked.
+* CI can sign without a file at all: set `ECHOSONAR_STORE_FILE`, `ECHOSONAR_STORE_PASSWORD`,
+  `ECHOSONAR_KEY_ALIAS` and `ECHOSONAR_KEY_PASSWORD` as encrypted repository secrets.
+
+### If a key is ever committed by accident
+
+1. **Rotate first.** Anything pushed to a public remote is compromised even if you delete it seconds
+   later: forks, clones, caches and GitHub's own object store may keep it. Delete the `.jks`, rerun
+   `create-keystore.ps1`, and rebuild/re-sign the APK.
+2. Rewrite history so the blob is not reachable from any branch
+   (`git filter-repo --invert-paths --path keystore ...`, then `git push --force-with-lease`).
+3. Run `git gc --prune=now` locally and ask GitHub Support to purge cached views of the old commit.
+4. Assume the old key and its password are public: anything signed with it can be forged, so it must
+   never be trusted again.
 
 ## How the sonar works
 
@@ -140,6 +171,9 @@ app/src/main/java/com/echosonar/
   sensors/   OrientationTracker (rotation vector / gyro heading)
   ui/        SonarViewModel, SonarUiState, theme, CRT components, radar canvas, sheets
   MainActivity.kt
+.githooks/   pre-commit secret guard (install with scripts/install-git-hooks.ps1)
+.github/     CI: secret-guard workflow
+scripts/     create-keystore.ps1, install-git-hooks.ps1, build-release.ps1
 ```
 
 ## Safety
